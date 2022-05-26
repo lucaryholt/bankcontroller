@@ -16,15 +16,18 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var debug bool = false
+
 var bankEndpoints map[string]string
 var bankTokens map[string]string
 
 type TransferRequest struct {
+	ID                    string  `json:"id"`
 	SenderBankID          string  `json:"senderBankId"`
 	ReceiverBankID        string  `json:"receiverBankId"`
 	SenderAccountNumber   int     `json:"senderAccountNumber"`
 	ReceiverAccountNumber int     `json:"receiverAccountNumber"`
-	Amount                float64 `json:"amount"`
+	Amount                float64 `json:"amount,string"`
 	Message               string  `json:"message"`
 }
 
@@ -33,7 +36,16 @@ type TransferAnswer struct {
 	Status  bool   `json:"status"`
 }
 
-func transferRequest(c *gin.Context) {
+func debugOutput(title string, output any) {
+	if debug {
+		fmt.Println(title)
+		fmt.Println(output)
+	}
+}
+
+func transferRequestHandler(c *gin.Context) {
+	fmt.Println(c.Request)
+
 	token := c.Request.Header["Token"]
 
 	if len(token) == 0 {
@@ -43,7 +55,14 @@ func transferRequest(c *gin.Context) {
 
 	request := TransferRequest{}
 
-	c.Bind(&request)
+	err := c.Bind(&request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Could not parse request."})
+		fmt.Println(err.Error())
+		return
+	}
+
+	debugOutput("INCOMING REQUEST", request)
 
 	if token[0] != bankTokens[request.SenderBankID] {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Not authorized. Provide valid admin key."})
@@ -55,6 +74,7 @@ func transferRequest(c *gin.Context) {
 	}
 
 	postBody, _ := json.Marshal(map[string]string{
+		"id":                    request.ID,
 		"senderBankId":          request.SenderBankID,
 		"senderAccountNumber":   strconv.Itoa(request.SenderAccountNumber),
 		"receiverAccountNumber": strconv.Itoa(request.ReceiverAccountNumber),
@@ -63,6 +83,8 @@ func transferRequest(c *gin.Context) {
 	})
 
 	requestBody := bytes.NewBuffer(postBody)
+
+	debugOutput("OUTGOING TO RECEIVING BANK", requestBody)
 
 	outRequest, err := http.NewRequest("POST", bankEndpoints[request.ReceiverBankID], requestBody)
 	if err != nil {
@@ -93,6 +115,8 @@ func transferRequest(c *gin.Context) {
 		return
 	}
 
+	debugOutput("RESPONSE FROM RECEIVING BANK", answer)
+
 	if answer.Status {
 		c.JSON(http.StatusOK, gin.H{"message": answer.Message, "status": answer.Status})
 		return
@@ -115,12 +139,18 @@ func init() {
 	if err != nil {
 		log.Fatal("Could not parse bank tokens")
 	}
+
+	debug, err = strconv.ParseBool(os.Getenv("DEBUG"))
+	if err != nil {
+		debug = false
+	}
+	fmt.Println(debug)
 }
 
 func main() {
 	router := gin.Default()
 
-	router.POST("/transfer", transferRequest)
+	router.POST("/transfer", transferRequestHandler)
 
 	router.Run(":" + os.Getenv("PORT"))
 }
