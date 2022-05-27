@@ -44,8 +44,6 @@ func debugOutput(title string, output any) {
 }
 
 func transferRequestHandler(c *gin.Context) {
-	fmt.Println(c.Request)
-
 	token := c.Request.Header["Token"]
 
 	if len(token) == 0 {
