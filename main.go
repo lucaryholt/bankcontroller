@@ -26,7 +26,7 @@ type TransferRequest struct {
 	SenderBankID          string  `json:"senderBankId"`
 	ReceiverBankID        string  `json:"receiverBankId"`
 	SenderAccountNumber   int     `json:"senderAccountNumber"`
-	ReceiverAccountNumber int     `json:"receiverAccountNumber"`
+	ReceiverAccountNumber int     `json:"receiverAccountNumber,string"`
 	Amount                float64 `json:"amount,string"`
 	Message               string  `json:"message"`
 }
